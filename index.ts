@@ -64,7 +64,8 @@ async function GetResource(url: string, is_web: boolean, _config?: $config): Pro
         let webpath = _config.resource_url[_config.mode];
         console.log(`Forwarding to ${webpath + url}`);
         try {
-            return (await (await fetch(webpath + url)).text());
+            let resource = (await (await fetch(webpath + url)).text());
+            return resource
         } catch (e) {
             console.log(e);
             return null;
