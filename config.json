@@ -1,7 +1,7 @@
 {
-    "mode": "modern",
-    "resources": {
+    "mode": "old",
+    "resource_url": {
         "modern": "E:\\Documents\\GitHub\\otgithub",
-        "old": "https://github.com..."
+        "old": "https://resources.oldtanksonline.ru"
     }
 }

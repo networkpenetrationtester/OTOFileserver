@@ -7,17 +7,20 @@ const dir = import.meta.dirname;
 
 type $config = {
     "mode": "old" | "modern",
-    "resources": {
+    "resource_url": {
         "modern": string,
         "old": string
     }
 }
 
-const _config: $config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+const config: $config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
 // I thought I'd do path.join for crossplatform but now I realize the game only has builds for windows :facepalm:
 
-console.log(_config);
+console.log(config);
+let resources_url = new URL(config.resource_url[config.mode]);
+const is_web = (resources_url.host != null && resources_url.origin !== 'null');
+console.log(`Configured resource path is ${is_web ? 'web' : 'local'}`);
 
 const RequestStamper: express.RequestHandler = (req, res, next) => {
     console.log(
@@ -53,39 +56,48 @@ app.get('/socket_test.cfg', (req, res) => {
     return;
 });
 
-function GetResource(version: 'old' | 'modern', is_web: boolean, res: express.Response<any>, config?: $config) {
-    config ??= _config;
+async function GetResource(url: string, is_web: boolean, _config?: $config): Promise<string | null> {
+    // I have no clue what I'm doing bro
+    // Array buffers ain't work figure this shit out
+    _config ??= config;
     if (is_web) {
-
+        let webpath = _config.resource_url[_config.mode];
+        console.log(`Forwarding to ${webpath + url}`);
+        try {
+            return (await (await fetch(webpath + url)).text());
+        } catch (e) {
+            console.log(e);
+            return null;
+        }
     } else {
-        // try file loading
-        // fs.exists
+        let filepath = path.join(_config.resource_url[_config.mode], url.split('?')[0]);
+        if (fs.existsSync(filepath) && !fs.statSync(filepath).isDirectory()) {
+            let file = fs.readFileSync(filepath, 'utf8');
+            return file;
+        } else {
+            return null;
+        }
     }
 }
 
-app.get('/resources/:resource', async (req, res) => {
-    let url = new URL(_config.resources[_config.mode]);
-    let is_web = (url.host != null && url.origin !== 'null') && url.href && url.pathname;
+app.get('/resources/*resource', async (req, res) => {
     // if protocol is not http or https, or origin is null, then its a local path maybe
     // switch mode, direct to downloaded resources/otgithub if "modern", otherwise, forward to real resources server
-    switch (_config.mode) {
-        case 'modern':
-            if (is_web) {
-
-            } else {
-
+    if (resources_url.href !== '' && resources_url.pathname !== '') { // try ig
+        let resource = await GetResource(req.url, is_web);
+        if (resource) {
+            try {
+                res.type(path.basename(req.url).split('\.')[1]);
+                res.send(resource);
+                // this breaks if for example a 404 error page appears in HTML
+            } catch (e) {
+                console.log(e);
+                res.sendStatus(500);
             }
-            let filepath = path.join('', req.params.resource.split('?')[0]);
-            res.sendFile(filepath);
-            return;
-        case 'old':
-            let x = await (await (fetch('https://resources.oldtanksonline.ru/Loader.swf' + req.url))).arrayBuffer();
-            res.send
-            // let y = new DataView(x);
-            // fs.writeFileSync('test.bin', y);
-            return;
+        } else {
+            res.sendStatus(404);
+        }
     }
-    return;
 });
 
 app.listen(8080);
